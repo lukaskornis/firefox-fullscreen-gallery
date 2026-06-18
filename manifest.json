@@ -1,0 +1,53 @@
+{
+  "manifest_version": 2,
+  "name": "Fullscreen Gallery",
+  "version": "1.5.0",
+  "description": "Turn any website into a fullscreen image gallery. Skips logos/icons, loads full-size images, seamless next-page, like & save locally.",
+
+  "icons": {
+    "48": "icons/icon.svg",
+    "96": "icons/icon.svg"
+  },
+
+  "permissions": [
+    "<all_urls>",
+    "storage"
+  ],
+
+  "browser_action": {
+    "default_title": "Fullscreen Gallery",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "48": "icons/icon.svg",
+      "96": "icons/icon.svg"
+    }
+  },
+
+  "background": {
+    "scripts": ["background.js"]
+  },
+
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
+
+  "commands": {
+    "_execute_browser_action": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+G"
+      },
+      "description": "Open the Fullscreen Gallery popup"
+    }
+  },
+
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "fullscreen-gallery@webextension"
+    }
+  }
+}

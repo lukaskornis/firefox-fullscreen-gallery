@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  :root { color-scheme: dark; }
+  body { width: 320px; margin: 0; padding: 14px 16px;
+    font-family: system-ui, sans-serif; font-size: 13px;
+    background: #16181d; color: #e6e6e6; }
+  h1 { font-size: 15px; margin: 0 0 2px; }
+  .sub { color: #8a93a3; font-size: 11px; margin-bottom: 12px; }
+  .row { display: flex; gap: 8px; margin-bottom: 8px; }
+  button { flex: 1; cursor: pointer; background: #2a2f3a; color: #e6e6e6;
+    border: 1px solid #3a4151; border-radius: 7px; padding: 9px 10px; font-size: 13px; }
+  button:hover { background: #353c49; }
+  button.primary { background: #2f5bd0; border-color: #3f6be0; }
+  button.primary:hover { background: #3a68e0; }
+  button.danger:hover { background: #5a2630; border-color: #7a3340; }
+  .section { margin: 14px 0 6px; font-size: 11px; letter-spacing: .6px;
+    text-transform: uppercase; color: #7f8896; }
+  label.toggle { display: flex; align-items: center; gap: 9px; padding: 6px 0; cursor: pointer; }
+  label.toggle input { width: 16px; height: 16px; accent-color: #3f6be0; }
+  label.toggle .t { flex: 1; }
+  label.toggle .d { color: #8a93a3; font-size: 11px; }
+  table.keys { width: 100%; border-collapse: collapse; margin-top: 4px; }
+  table.keys td { padding: 3px 0; vertical-align: top; }
+  table.keys td.k { white-space: nowrap; color: #cfe0ff; font-family: ui-monospace, monospace;
+    font-size: 12px; padding-right: 10px; }
+  .status { min-height: 14px; color: #7fd08a; font-size: 11px; margin-top: 8px; }
+  details { margin-top: 6px; }
+  summary { cursor: pointer; color: #aab3c2; }
+</style>
+</head>
+<body>
+  <h1>Fullscreen Gallery</h1>
+  <div class="sub">Turn any page into a fullscreen image gallery.</div>
+
+  <div class="row">
+    <button id="open" class="primary">Open gallery</button>
+  </div>
+  <div class="row">
+    <button id="local">Saved gallery</button>
+    <button id="clear" class="danger">Clear saved</button>
+  </div>
+  <div class="status" id="status"></div>
+
+  <div class="section">Settings</div>
+  <label class="toggle">
+    <input type="checkbox" id="lettersNav">
+    <span class="t">W / A / S / D navigation
+      <div class="d">Letter-key movement (arrows always work)</div></span>
+  </label>
+  <label class="toggle">
+    <input type="checkbox" id="optionShortcuts">
+    <span class="t">Option + Z / X / C shortcuts
+      <div class="d">Open · saved gallery · clear</div></span>
+  </label>
+  <label class="toggle">
+    <input type="checkbox" id="autoLikeNext">
+    <span class="t">Auto-like on next page
+      <div class="d">Like the image when advancing to its page (default off)</div></span>
+  </label>
+  <label class="toggle">
+    <input type="checkbox" id="hideGraphics">
+    <span class="t">Hide graphics
+      <div class="d">Skip SVGs, nav/footer images, and transparent PNGs</div></span>
+  </label>
+
+  <details>
+    <summary>Features &amp; controls</summary>
+    <table class="keys">
+      <tr><td class="k">Opt+Z</td><td>Open / close (opens fullscreen)</td></tr>
+      <tr><td class="k">Opt+X</td><td>Open saved (liked) gallery</td></tr>
+      <tr><td class="k">Opt+C</td><td>Clear saved gallery</td></tr>
+      <tr><td class="k">→ / D</td><td>Next image</td></tr>
+      <tr><td class="k">← / A</td><td>Previous image</td></tr>
+      <tr><td class="k">↑ / W</td><td>Like + go to next page (if any)</td></tr>
+      <tr><td class="k">↓ / S</td><td>Unlike</td></tr>
+      <tr><td class="k">Space</td><td>Toggle like / save</td></tr>
+      <tr><td class="k">Enter</td><td>Seamless next page</td></tr>
+      <tr><td class="k">F</td><td>Toggle fullscreen</td></tr>
+      <tr><td class="k">Esc</td><td>Close</td></tr>
+    </table>
+    <div class="d" style="margin-top:8px;color:#8a93a3;">
+      Likes are saved to local browser storage (no download, persists across sessions).
+      Small images are upscaled to fill the screen with a blurred backdrop and gentle
+      artifact smoothing. Links that point straight to an image never navigate away —
+      the image just stays in the gallery.
+    </div>
+  </details>
+
+  <script src="popup.js"></script>
+</body>
+</html>

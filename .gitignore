@@ -1,0 +1,12 @@
+# Build artifacts
+*.xpi
+*.zip
+web-ext-artifacts/
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.idea/
+.vscode/
