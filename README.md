@@ -92,6 +92,7 @@ likes are stored in your browser's own extension storage.
 | `⌥Z` | Open / close the gallery (opens **fullscreen by default**) |
 | `⌥X` | Open the **saved gallery** of liked images |
 | `⌥C` | Clear the saved gallery |
+| `⌥R` | Toggle **random (shuffle) mode** — next/prev jump to a random image |
 | `→` / `D` | Next image |
 | `←` / `A` | Previous image |
 | `↑` / `W` | Like + save **and** go to the next page if one exists |

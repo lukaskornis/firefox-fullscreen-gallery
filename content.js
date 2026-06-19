@@ -370,10 +370,11 @@
         .counter { font-variant-numeric: tabular-nums; letter-spacing: .5px; min-width: 90px; }
         .spacer { flex: 1; }
         .heart { font-size: 20px; cursor: pointer; background: none; border: none; color: #ddd; padding: 0 4px; }
-        .openlink, .close, .visit, .fs, .gopage { color: #ddd; text-decoration: none; cursor: pointer;
+        .openlink, .close, .visit, .fs, .gopage, .shuffle { color: #ddd; text-decoration: none; cursor: pointer;
           background: rgba(255,255,255,.08); border: none; padding: 6px 12px; border-radius: 6px;
           font-size: 13px; white-space: nowrap; }
-        .openlink:hover, .close:hover, .visit:hover, .fs:hover, .gopage:hover { background: rgba(255,255,255,.2); color: #fff; }
+        .openlink:hover, .close:hover, .visit:hover, .fs:hover, .gopage:hover, .shuffle:hover { background: rgba(255,255,255,.2); color: #fff; }
+        .shuffle.on { background: rgba(76,141,255,.4); color: #fff; }
         .visit { background: rgba(76,141,255,.22); color: #cfe0ff; }
         .visit:hover { background: rgba(76,141,255,.4); color: #fff; }
         .visit[hidden], .gopage[hidden] { display: none; }
@@ -386,6 +387,7 @@
           <a class="visit" title="Next page (Enter / ↑)">Next page ↵</a>
           <a class="gopage" title="Open this image's page in this tab (O)">Open page ⤴</a>
           <a class="openlink" target="_blank" rel="noopener">Open image ↗</a>
+          <button class="shuffle" title="Random mode (Option+R)">🔀</button>
           <button class="fs" title="Toggle fullscreen (F)">⛶</button>
           <button class="close" title="Close (Esc)">✕</button>
         </div>
@@ -418,9 +420,11 @@
     const visitLink = q(".visit");
     const goPageLink = q(".gopage");
     const welcomeEl = q(".welcome");
+    const shuffleBtn = q(".shuffle");
     const stage = q(".stage");
 
     let index = 0;
+    let random = false;
     let lastDomEl = null;
     let loadToken = 0;
     let flashTimer = 0;
@@ -695,8 +699,22 @@
       if (item && item.full && !item.welcome) new Image().src = item.full;
     }
 
-    const next = () => { ensureFullscreen(); show(index + 1); };
-    const prev = () => { ensureFullscreen(); show(index - 1); };
+    // Random ("shuffle") mode: advancing jumps to a random image (never the welcome card at 0).
+    function randomIndex() {
+      if (images.length <= 2) return Math.min(1, images.length - 1);
+      let r;
+      do { r = 1 + Math.floor(Math.random() * (images.length - 1)); } while (r === index);
+      return r;
+    }
+    function toggleRandom() {
+      random = !random;
+      shuffleBtn.classList.toggle("on", random);
+      flash(random ? "🔀" : "➡️");
+      if (random) show(randomIndex());
+    }
+
+    const next = () => { ensureFullscreen(); show(random ? randomIndex() : index + 1); };
+    const prev = () => { ensureFullscreen(); show(random ? randomIndex() : index - 1); };
     const up = () => { ensureFullscreen(); like(); loadNextPage(); };
     // Down / S: step back a page if we've traversed forward — resume on the image we left on
     // (and restore that page's address bar); otherwise just go to the previous image.
@@ -730,6 +748,7 @@
     q(".next").addEventListener("click", next);
     q(".prev").addEventListener("click", prev);
     q(".fs").addEventListener("click", toggleFullscreen);
+    shuffleBtn.addEventListener("click", toggleRandom);
     q(".close").addEventListener("click", close);
     heartEl.addEventListener("click", () => toggleLike());
     visitLink.addEventListener("click", (e) => { e.preventDefault(); loadNextPage(); });
@@ -767,7 +786,7 @@
 
     show(opts.startIndex || 0);
     if (host.requestFullscreen) host.requestFullscreen().catch(() => {}); // fullscreen by default
-    return { close, show, isLocal: !!opts.local };
+    return { close, show, isLocal: !!opts.local, toggleRandom };
   }
 
   function buildEmpty(message) {
@@ -834,6 +853,10 @@
     if (e.code === "KeyZ") { e.preventDefault(); toggleGallery(); }
     else if (e.code === "KeyX") { e.preventDefault(); openLocalGallery(); }
     else if (e.code === "KeyC") { e.preventDefault(); clearLiked(); }
+    else if (e.code === "KeyR") {
+      const inst = window.__fsGalleryInstance;
+      if (inst && inst.toggleRandom) { e.preventDefault(); inst.toggleRandom(); }
+    }
   }, true);
 
   loadSettings();
