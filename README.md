@@ -153,6 +153,8 @@ browser's local extension storage.
 - Some sites (e.g. Google Images) inject results via JavaScript with URLs buried in inline
   JSON; only the initially-rendered images are picked up there.
 - Transparency detection is same-origin only (browser canvas security).
+- On a fetched next page, lazy-load placeholders are unwrapped to the real image URL, but a
+  few sites hotlink-protect images by `Referer` and may still serve a blank/black frame.
 
 ## License
 

@@ -262,15 +262,35 @@
   }
 
   // ---- Discovery on a FETCHED page -------------------------------------------
+  // A fetched document is never rendered, so lazy-loaded <img> tags still hold a
+  // placeholder in src (blank gif / data-URI / "loading" image) with the real URL in
+  // data-* / srcset. Grabbing src first appends those placeholders → black images.
+  const PLACEHOLDER_RE = /(^data:image\/(gif|svg)|\b(blank|spacer|placeholder|lazy|loading|transparent|1x1|pixel|grey|gray|dummy)\b)/i;
+  const LAZY_ATTRS = [
+    "data-src", "data-original", "data-lazy-src", "data-lazy", "data-url",
+    "data-image", "data-hi-res", "data-actualsrc", "data-echo", "data-flickity-lazyload"
+  ];
+  function bestFetchedSrc(img, abs) {
+    const cands = [];
+    for (const a of FULL_ATTRS) { const v = img.getAttribute(a); if (v) cands.push(v); }
+    for (const a of LAZY_ATTRS) { const v = img.getAttribute(a); if (v) cands.push(v); }
+    const ss = largestFromSrcset(img.getAttribute("srcset") || img.getAttribute("data-srcset"));
+    if (ss) cands.push(ss);
+    const raw = img.getAttribute("src");
+    if (raw && !PLACEHOLDER_RE.test(raw)) cands.push(raw);      // real src, not a placeholder
+    if (raw && PLACEHOLDER_RE.test(raw)) cands.push(raw);       // last resort if nothing else
+    for (const c of cands) {
+      const u = abs(c);
+      if (u && !PLACEHOLDER_RE.test(u)) return u;
+    }
+    return abs(raw);
+  }
   function extractFetched(doc, base) {
     const out = [];
     const abs = (u) => { if (!u) return null; try { return new URL(u, base).href; } catch (_) { return null; } };
     for (const img of doc.querySelectorAll("img")) {
-      let src = img.getAttribute("src")
-        || largestFromSrcset(img.getAttribute("srcset") || img.getAttribute("data-srcset"))
-        || img.getAttribute("data-src") || img.getAttribute("data-lazy-src");
-      src = abs(src);
-      if (!src) continue;
+      const src = bestFetchedSrc(img, abs);
+      if (!src || PLACEHOLDER_RE.test(src)) continue;            // skip pure placeholders
       if (looksLikeJunk(img, src)) continue;
       const w = parseInt(img.getAttribute("width"), 10) || 0;
       const h = parseInt(img.getAttribute("height"), 10) || 0;
@@ -278,7 +298,7 @@
       let full = null;
       for (const attr of FULL_ATTRS) {
         const v = img.getAttribute(attr);
-        if (v) { full = abs(v); if (full) break; }
+        if (v) { full = abs(v); if (full && !PLACEHOLDER_RE.test(full)) break; full = null; }
       }
       const anchor = img.closest("a[href]");
       const ah = anchor ? abs(anchor.getAttribute("href")) : null;
@@ -287,7 +307,7 @@
       if (!full && ah && IMG_URL_RE.test(ah)) full = ah;
       if (!full) {
         const big = abs(largestFromSrcset(img.getAttribute("srcset") || img.getAttribute("data-srcset")));
-        if (big) full = big;
+        if (big && !PLACEHOLDER_RE.test(big)) full = big;
       }
       full = full || src;
       let pageHref = null;
