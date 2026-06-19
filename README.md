@@ -73,6 +73,10 @@ likes are stored in your browser's own extension storage.
   scrolls the underlying page to trigger lazy-loaders and appends what shows up; once the page is
   fully harvested, it **automatically travels to the next page** (pagination / detail page) and
   keeps the images coming — no keypress needed. Manual `Enter` / `↑` still jumps ahead on demand.
+- **Page-aware back & address bar.** Each time it advances into a new page, the tab's **address
+  bar follows** (same-origin pages, via `history` — so closing the gallery leaves you on the page
+  you browsed to). Press `↓` / `S` to **step back a page**, landing back on the exact image you
+  left off on and restoring that page's URL.
 - **Junk filtering.** Skips anything under ~140px per side, tiny-area banners, and anything whose
   class/id/alt/url matches `logo|icon|sprite|avatar|emoji|badge|favicon|spinner|button|…`.
   Optionally skips SVGs, `<nav>`/`<footer>` images, and same-origin transparent PNGs.
@@ -88,7 +92,7 @@ likes are stored in your browser's own extension storage.
 | `→` / `D` | Next image |
 | `←` / `A` | Previous image |
 | `↑` / `W` | Like + save **and** go to the next page if one exists |
-| `↓` / `S` | Unlike |
+| `↓` / `S` | Go **back a page** — return to the image you left on (else previous image) |
 | `Space` | Toggle like / save |
 | `Enter` | Seamlessly load the next page (no like) |
 | `O` | Open this image's own page in the **same tab** (real navigation) |

@@ -431,6 +431,7 @@
     let loadToken = 0;
     let flashTimer = 0;
     const originalScrollY = window.scrollY;
+    const pageStack = [];   // return points for going back a page: { idx, prevUrl }
 
     function flash(sym) {
       flashEl.textContent = sym;
@@ -556,8 +557,10 @@
           try { res = await fetchGallery(url); } catch (_) { continue; }
           if (res.fresh.length > 1) {                          // a real gallery → enter it
             const startIdx = images.length;
+            pageStack.push({ idx: index, prevUrl: location.href });   // remember where we left off
             for (const it of res.fresh) { seen.add(it.full); images.push(it); }
             pageCursor = findNextLink(res.doc, url);            // keep paginating from here
+            try { history.pushState(null, "", url); } catch (_) { /* cross-origin: address bar stays */ }
             show(startIdx);
             return true;
           }
@@ -628,7 +631,15 @@
     const next = () => { ensureFullscreen(); show(index + 1); };
     const prev = () => { ensureFullscreen(); show(index - 1); };
     const up = () => { ensureFullscreen(); like(); loadNextPage(); };
-    const down = () => { ensureFullscreen(); unlike(); };
+    // Down / S: step back a page if we've traversed forward — resume on the image we left on
+    // (and restore that page's address bar); otherwise just go to the previous image.
+    const down = () => {
+      ensureFullscreen();
+      if (!pageStack.length) { show(index - 1); return; }
+      const { idx, prevUrl } = pageStack.pop();
+      try { history.pushState(null, "", prevUrl); } catch (_) { /* cross-origin */ }
+      show(idx);
+    };
 
     // Real same-tab navigation to this image's own page (e.g. from a saved favorite,
     // jump to the actual page that holds the picture / its gallery).
