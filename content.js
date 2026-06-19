@@ -23,6 +23,10 @@
   const SETTINGS_KEY = "fsgSettings";
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+  // ---- Global cursor tracking -----------------------------------------------
+  let lastMouse = { x: Math.floor(window.innerWidth / 2), y: Math.floor(window.innerHeight / 2) };
+  document.addEventListener("mousemove", (e) => { lastMouse = { x: e.clientX, y: e.clientY }; }, { passive: true, capture: true });
+
   // ---- Settings (synced live from the popup) ---------------------------------
   let settings = { lettersNav: true, optionShortcuts: true, autoLikeNext: false, hideGraphics: true };
   async function loadSettings() {
@@ -212,7 +216,7 @@
       const full = fullSrc(img, src) || src;
       if (seen.has(full)) continue;
       seen.add(full);
-      out.push({ thumb: src, full, area: w * h, pageHref: anchorPage(img, location.href) });
+      out.push({ thumb: src, full, area: w * h, pageHref: anchorPage(img, location.href), el: img });
     }
     for (const el of document.querySelectorAll("*")) {
       const rect = el.getBoundingClientRect();
@@ -228,9 +232,33 @@
       if (settings.hideGraphics && looksLikeGraphic(el, abs)) continue;
       if (seen.has(abs)) continue;
       seen.add(abs);
-      out.push({ thumb: abs, full: abs, area: rect.width * rect.height, pageHref: anchorPage(el, location.href) });
+      out.push({ thumb: abs, full: abs, area: rect.width * rect.height, pageHref: anchorPage(el, location.href), el });
     }
     return out;
+  }
+
+  // ---- Pick the most-prominent on-screen image to open on --------------------
+  function viewportVisibleArea(rect) {
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const w = Math.max(0, Math.min(rect.right, vw) - Math.max(rect.left, 0));
+    const h = Math.max(0, Math.min(rect.bottom, vh) - Math.max(rect.top, 0));
+    return w * h;
+  }
+  function pickStartIndex(images) {
+    let best = 0, bestVis = -1, bestDist = Infinity;
+    for (let i = 0; i < images.length; i++) {
+      const el = images[i].el;
+      if (!el || !el.isConnected) continue;
+      const rect = el.getBoundingClientRect();
+      const vis = viewportVisibleArea(rect);
+      if (vis <= 0) continue;
+      const cx = rect.left + rect.width / 2, cy = rect.top + rect.height / 2;
+      const dist = Math.hypot(cx - lastMouse.x, cy - lastMouse.y);
+      // Prefer clearly-more-visible images; break near-ties (within 15%) by mouse proximity.
+      if (vis > bestVis * 1.15) { best = i; bestVis = vis; bestDist = dist; }
+      else if (vis > bestVis * 0.85 && dist < bestDist) { best = i; bestVis = Math.max(bestVis, vis); bestDist = dist; }
+    }
+    return best;
   }
 
   // ---- Discovery on a FETCHED page -------------------------------------------
@@ -359,6 +387,7 @@
     const stage = q(".stage");
 
     let index = 0;
+    let lastDomEl = null;
     let loadToken = 0;
     let flashTimer = 0;
     const originalScrollY = window.scrollY;
@@ -467,6 +496,7 @@
     function show(i) {
       index = (i + images.length) % images.length;
       const item = images[index];
+      if (images[index].el && images[index].el.isConnected) lastDomEl = images[index].el;
       const token = ++loadToken;
       counter.textContent = `${index + 1} / ${images.length}`;
       openLink.href = item.full;
@@ -530,11 +560,12 @@
       document.removeEventListener("keydown", onKey, true);
       if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
       host.remove();
-      window.scrollTo(0, originalScrollY);
+      if (lastDomEl && lastDomEl.isConnected) lastDomEl.scrollIntoView({ block: "center", inline: "center" });
+      else window.scrollTo(0, originalScrollY);
       window.__fsGalleryInstance = null;
     }
 
-    show(0);
+    show(opts.startIndex || 0);
     if (host.requestFullscreen) host.requestFullscreen().catch(() => {}); // fullscreen by default
     return { close, show, isLocal: !!opts.local };
   }
@@ -564,8 +595,9 @@
     if (window.__fsGalleryInstance) return;
     const seen = new Set();
     const images = collectImages(seen);
+    const start = pickStartIndex(images);
     window.__fsGalleryInstance = images.length
-      ? buildGallery(images, seen)
+      ? buildGallery(images, seen, { startIndex: start })
       : buildEmpty("No gallery-worthy images found on this page.");
   }
   function openLocalGallery() {

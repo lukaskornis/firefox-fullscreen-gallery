@@ -48,6 +48,12 @@ likes are stored in your browser's own extension storage.
 - **Seamless next page.** `Enter` / `↑` fetches the linked page in the background, extracts
   its images, appends them, and jumps to the first new one. The gallery never closes — chain
   deeper and deeper through a site.
+- **Opens on what you're looking at.** The gallery starts on the image most visible in the
+  current viewport; when several are similarly visible, it picks the one whose center is closest
+  to your cursor.
+- **Closes where you left off.** On close it scrolls the page so the last image you viewed is
+  centered and fully in view — falling back to your original scroll position for off-page images
+  (saved gallery items or next-page results that aren't on the current page).
 - **No dead-end navigation.** If a card links straight to an image file (not a page), the
   gallery never navigates there — that image is already shown, so "next page" is simply
   suppressed for it.
