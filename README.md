@@ -57,9 +57,9 @@ likes are stored in your browser's own extension storage.
   And **`O` / the "Open page ⤴" button navigates the current tab straight to that image's own
   page** — a real navigation — so a favorite becomes a one-key jump back to where the picture
   (and its gallery) actually lives.
-- **Opens on what you're looking at.** The gallery starts on the image most visible in the
-  current viewport; when several are similarly visible, it picks the one whose center is closest
-  to your cursor.
+- **Welcome card first.** Every gallery opens on a text-only welcome screen (no image) with a quick
+  key cheatsheet — press `→` to start browsing. It's always index 0, in both the page gallery and the
+  saved gallery.
 - **Closes where you left off.** On close it scrolls the page so the last image you viewed is
   centered and fully in view — falling back to your original scroll position for off-page images
   (saved gallery items or next-page results that aren't on the current page).

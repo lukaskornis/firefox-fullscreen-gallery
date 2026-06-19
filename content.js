@@ -23,9 +23,8 @@
   const SETTINGS_KEY = "fsgSettings";
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-  // ---- Global cursor tracking -----------------------------------------------
-  let lastMouse = { x: Math.floor(window.innerWidth / 2), y: Math.floor(window.innerHeight / 2) };
-  document.addEventListener("mousemove", (e) => { lastMouse = { x: e.clientX, y: e.clientY }; }, { passive: true, capture: true });
+  // The gallery always opens on a text-only welcome card (no image) at index 0.
+  const makeWelcome = () => ({ welcome: true, full: "", thumb: "" });
 
   // ---- Settings (synced live from the popup) ---------------------------------
   let settings = { lettersNav: true, optionShortcuts: true, autoLikeNext: false, hideGraphics: true };
@@ -240,30 +239,6 @@
     return out;
   }
 
-  // ---- Pick the most-prominent on-screen image to open on --------------------
-  function viewportVisibleArea(rect) {
-    const vw = window.innerWidth, vh = window.innerHeight;
-    const w = Math.max(0, Math.min(rect.right, vw) - Math.max(rect.left, 0));
-    const h = Math.max(0, Math.min(rect.bottom, vh) - Math.max(rect.top, 0));
-    return w * h;
-  }
-  function pickStartIndex(images) {
-    let best = 0, bestVis = -1, bestDist = Infinity;
-    for (let i = 0; i < images.length; i++) {
-      const el = images[i].el;
-      if (!el || !el.isConnected) continue;
-      const rect = el.getBoundingClientRect();
-      const vis = viewportVisibleArea(rect);
-      if (vis <= 0) continue;
-      const cx = rect.left + rect.width / 2, cy = rect.top + rect.height / 2;
-      const dist = Math.hypot(cx - lastMouse.x, cy - lastMouse.y);
-      // Prefer clearly-more-visible images; break near-ties (within 15%) by mouse proximity.
-      if (vis > bestVis * 1.15) { best = i; bestVis = vis; bestDist = dist; }
-      else if (vis > bestVis * 0.85 && dist < bestDist) { best = i; bestVis = Math.max(bestVis, vis); bestDist = dist; }
-    }
-    return best;
-  }
-
   // ---- Discovery on a FETCHED page -------------------------------------------
   // A fetched document is never rendered, so lazy-loaded <img> tags still hold a
   // placeholder in src (blank gif / data-URI / "loading" image) with the real URL in
@@ -368,6 +343,15 @@
           border-radius: 50%; animation: spin .8s linear infinite; opacity: 0; pointer-events: none; }
         .spinner.show { opacity: 1; }
         @keyframes spin { to { transform: rotate(360deg); } }
+        .welcome { position: absolute; z-index: 3; inset: 0; display: none; flex-direction: column;
+          align-items: center; justify-content: center; text-align: center; gap: 16px; padding: 40px; }
+        .welcome.show { display: flex; }
+        .welcome h2 { font-size: clamp(30px, 5vw, 58px); font-weight: 650; letter-spacing: .5px;
+          color: #fff; text-shadow: 0 4px 30px rgba(0,0,0,.6); }
+        .welcome p { font-size: 15px; line-height: 1.7; color: #9aa3b2; max-width: 560px; }
+        .welcome kbd { font-family: ui-monospace, monospace; font-size: 12px; color: #cfe0ff;
+          background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.14);
+          border-radius: 5px; padding: 1px 6px; margin: 0 1px; }
         .flash { position: absolute; z-index: 4; font-size: 130px; line-height: 1; opacity: 0;
           pointer-events: none; text-shadow: 0 6px 30px rgba(0,0,0,.7); }
         .flash.show { animation: pop .6s ease; }
@@ -409,6 +393,12 @@
           <div class="backdrop"></div>
           <button class="nav prev" title="Previous (← / A)">‹</button>
           <img class="main" alt="">
+          <div class="welcome">
+            <h2>Welcome to the gallery</h2>
+            <p><kbd>→</kbd> <kbd>←</kbd> browse &nbsp;·&nbsp; <kbd>Space</kbd> like &nbsp;·&nbsp;
+              <kbd>↑</kbd> like + next page &nbsp;·&nbsp; <kbd>Enter</kbd> next page &nbsp;·&nbsp;
+              <kbd>F</kbd> fullscreen &nbsp;·&nbsp; <kbd>Esc</kbd> close</p>
+          </div>
           <div class="spinner"></div>
           <div class="flash"></div>
           <button class="nav next" title="Next (→ / D)">›</button>
@@ -427,6 +417,7 @@
     const openLink = q(".openlink");
     const visitLink = q(".visit");
     const goPageLink = q(".gopage");
+    const welcomeEl = q(".welcome");
     const stage = q(".stage");
 
     let index = 0;
@@ -481,10 +472,11 @@
       heartEl.textContent = liked ? "♥" : "♡";
       heartEl.style.color = liked ? "#ff5a7a" : "#ddd";
     }
-    function like() { likeItem(images[index]); flash("♥"); refreshHeart(); }
+    function like() { if (images[index].welcome) return; likeItem(images[index]); flash("♥"); refreshHeart(); }
     function unlike() { unlikeItem(images[index]); flash("🤍"); refreshHeart(); }
     function toggleLike() {
       const item = images[index];
+      if (item.welcome) return;
       if (isLiked(item.full)) { unlikeItem(item); flash("🤍"); }
       else { likeItem(item); flash("♥"); }
       refreshHeart();
@@ -652,8 +644,27 @@
     function show(i) {
       index = (i + images.length) % images.length;
       const item = images[index];
-      if (images[index].el && images[index].el.isConnected) lastDomEl = images[index].el;
-      const token = ++loadToken;
+      ++loadToken;                                   // cancel any in-flight hi-res load
+      if (item.welcome) {                            // text-only welcome card — no image visible
+        welcomeEl.classList.add("show");
+        mainImg.removeAttribute("src");
+        mainImg.style.opacity = "0";
+        mainImg.style.filter = "";
+        backdrop.style.backgroundImage = "";
+        spinner.classList.remove("show");
+        counter.textContent = "Welcome";
+        heartEl.style.visibility = "hidden";
+        openLink.style.visibility = "hidden";
+        visitLink.hidden = true;
+        goPageLink.hidden = true;
+        preload(index + 1);
+        return;
+      }
+      welcomeEl.classList.remove("show");
+      heartEl.style.visibility = "";
+      openLink.style.visibility = "";
+      if (item.el && item.el.isConnected) lastDomEl = item.el;
+      const token = loadToken;
       counter.textContent = `${index + 1} / ${images.length}`;
       openLink.href = item.full;
       const nextTarget = item.pageHref || item.source || pageCursor;
@@ -681,7 +692,7 @@
     }
     function preload(i) {
       const item = images[(i + images.length) % images.length];
-      if (item) new Image().src = item.full;
+      if (item && item.full && !item.welcome) new Image().src = item.full;
     }
 
     const next = () => { ensureFullscreen(); show(index + 1); };
@@ -783,23 +794,26 @@
   function openGallery(resumeAt) {
     if (window.__fsGalleryInstance) return;
     const seen = new Set();
-    const images = collectImages(seen);
-    let start = pickStartIndex(images);
+    const real = collectImages(seen);
+    if (!real.length) { window.__fsGalleryInstance = buildEmpty("No gallery-worthy images found on this page."); return; }
+    const images = [makeWelcome(), ...real];          // welcome card always first
+    let start = 0;                                     // open on the welcome card (no image visible)
     if (resumeAt) {                                    // resumed after a real next-page navigation
       const i = images.findIndex((im) => im.full === resumeAt);
-      if (i >= 0) start = i;                           // land on the image we left off (else most-visible)
+      if (i >= 0) start = i;                           // land on the image we left off
     }
-    window.__fsGalleryInstance = images.length
-      ? buildGallery(images, seen, { startIndex: start })
-      : buildEmpty("No gallery-worthy images found on this page.");
+    window.__fsGalleryInstance = buildGallery(images, seen, { startIndex: start });
   }
   function openLocalGallery() {
     if (window.__fsGalleryInstance) window.__fsGalleryInstance.close();
-    const images = likedList.map((i) => ({ thumb: i.thumb || i.full, full: i.full, area: 0, pageHref: i.pageHref, source: i.source }));
-    const seen = new Set(images.map((i) => i.full));
-    window.__fsGalleryInstance = images.length
-      ? buildGallery(images, seen, { local: true })
-      : buildEmpty("Your saved gallery is empty. Press Space (or ↑) on images to save them, then reopen with Option+X.");
+    const real = likedList.map((i) => ({ thumb: i.thumb || i.full, full: i.full, area: 0, pageHref: i.pageHref, source: i.source }));
+    if (!real.length) {
+      window.__fsGalleryInstance = buildEmpty("Your saved gallery is empty. Press Space (or ↑) on images to save them, then reopen with Option+X.");
+      return;
+    }
+    const images = [makeWelcome(), ...real];
+    const seen = new Set(real.map((i) => i.full));
+    window.__fsGalleryInstance = buildGallery(images, seen, { local: true, startIndex: 0 });
   }
   function toggleGallery() {
     if (window.__fsGalleryInstance) window.__fsGalleryInstance.close();
