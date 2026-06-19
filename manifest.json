@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "Fullscreen Gallery",
-  "version": "1.8.0",
+  "version": "1.9.0",
   "description": "Turn any website into a fullscreen image gallery. Skips logos/icons, loads full-size images, seamless next-page, like & save locally.",
 
   "icons": {

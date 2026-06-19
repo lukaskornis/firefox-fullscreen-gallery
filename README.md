@@ -54,6 +54,9 @@ likes are stored in your browser's own extension storage.
 - **Saved gallery is a browsing entrypoint.** `Enter` / `↑` works inside the favorites gallery
   too: from any saved image it dives back into that image's page (or the page you saved it from)
   to pull in more — so your bookmarks double as a jumping-off point to explore similar images.
+  And **`O` / the "Open page ⤴" button navigates the current tab straight to that image's own
+  page** — a real navigation — so a favorite becomes a one-key jump back to where the picture
+  (and its gallery) actually lives.
 - **Opens on what you're looking at.** The gallery starts on the image most visible in the
   current viewport; when several are similarly visible, it picks the one whose center is closest
   to your cursor.
@@ -88,6 +91,7 @@ likes are stored in your browser's own extension storage.
 | `↓` / `S` | Unlike |
 | `Space` | Toggle like / save |
 | `Enter` | Seamlessly load the next page (no like) |
+| `O` | Open this image's own page in the **same tab** (real navigation) |
 | `F` | Toggle fullscreen |
 | `Esc` | Close (first press exits fullscreen) |
 | `Home` / `End` | First / last image |

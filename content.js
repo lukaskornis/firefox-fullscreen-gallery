@@ -383,13 +383,13 @@
         .counter { font-variant-numeric: tabular-nums; letter-spacing: .5px; min-width: 90px; }
         .spacer { flex: 1; }
         .heart { font-size: 20px; cursor: pointer; background: none; border: none; color: #ddd; padding: 0 4px; }
-        .openlink, .close, .visit, .fs { color: #ddd; text-decoration: none; cursor: pointer;
+        .openlink, .close, .visit, .fs, .gopage { color: #ddd; text-decoration: none; cursor: pointer;
           background: rgba(255,255,255,.08); border: none; padding: 6px 12px; border-radius: 6px;
           font-size: 13px; white-space: nowrap; }
-        .openlink:hover, .close:hover, .visit:hover, .fs:hover { background: rgba(255,255,255,.2); color: #fff; }
+        .openlink:hover, .close:hover, .visit:hover, .fs:hover, .gopage:hover { background: rgba(255,255,255,.2); color: #fff; }
         .visit { background: rgba(76,141,255,.22); color: #cfe0ff; }
         .visit:hover { background: rgba(76,141,255,.4); color: #fff; }
-        .visit[hidden] { display: none; }
+        .visit[hidden], .gopage[hidden] { display: none; }
       </style>
       <div class="overlay">
         <div class="topbar">
@@ -397,6 +397,7 @@
           <button class="heart" title="Like / save (Space)">♡</button>
           <span class="spacer"></span>
           <a class="visit" title="Next page (Enter / ↑)">Next page ↵</a>
+          <a class="gopage" title="Open this image's page in this tab (O)">Open page ⤴</a>
           <a class="openlink" target="_blank" rel="noopener">Open image ↗</a>
           <button class="fs" title="Toggle fullscreen (F)">⛶</button>
           <button class="close" title="Close (Esc)">✕</button>
@@ -422,6 +423,7 @@
     const heartEl = q(".heart");
     const openLink = q(".openlink");
     const visitLink = q(".visit");
+    const goPageLink = q(".gopage");
     const stage = q(".stage");
 
     let index = 0;
@@ -598,6 +600,9 @@
       const nextTarget = item.pageHref || item.source || pageCursor;
       if (nextTarget) { visitLink.href = nextTarget; visitLink.hidden = false; }
       else { visitLink.removeAttribute("href"); visitLink.hidden = true; }
+      const pageTarget = item.pageHref || item.source;          // this image's own page (not pagination)
+      if (pageTarget && /^https?:/i.test(pageTarget)) { goPageLink.href = pageTarget; goPageLink.hidden = false; }
+      else { goPageLink.removeAttribute("href"); goPageLink.hidden = true; }
       refreshHeart();
 
       mainImg.style.opacity = ".55";
@@ -625,12 +630,29 @@
     const up = () => { ensureFullscreen(); like(); loadNextPage(); };
     const down = () => { ensureFullscreen(); unlike(); };
 
+    // Real same-tab navigation to this image's own page (e.g. from a saved favorite,
+    // jump to the actual page that holds the picture / its gallery).
+    function navigateToPage() {
+      const item = images[index];
+      const url = item.pageHref || item.source;
+      if (!url || !/^https?:/i.test(url)) return;
+      // Reopen the gallery automatically only when the destination shares our origin
+      // (sessionStorage is per-origin; setting it before a cross-origin jump would just
+      // leave a stale flag on the page we're leaving).
+      try {
+        if (new URL(url, location.href).origin === location.origin) sessionStorage.setItem(RESUME_KEY, "1");
+      } catch (_) { /* malformed / blocked */ }
+      if (document.fullscreenElement) { document.exitFullscreen().catch(() => {}); }
+      window.location.assign(url);
+    }
+
     q(".next").addEventListener("click", next);
     q(".prev").addEventListener("click", prev);
     q(".fs").addEventListener("click", toggleFullscreen);
     q(".close").addEventListener("click", close);
     heartEl.addEventListener("click", () => toggleLike());
     visitLink.addEventListener("click", (e) => { e.preventDefault(); loadNextPage(); });
+    goPageLink.addEventListener("click", (e) => { e.preventDefault(); navigateToPage(); });
 
     stage.addEventListener("wheel", (e) => { e.preventDefault(); if (e.deltaY > 0) next(); else prev(); }, { passive: false });
     stage.addEventListener("click", (e) => { if (e.target === stage || e.target === backdrop) close(); });
@@ -645,6 +667,7 @@
       else if (e.key === "ArrowDown" || (L && code === "KeyS")) { e.preventDefault(); down(); }
       else if (e.key === " ") { e.preventDefault(); toggleLike(); }
       else if (e.key === "Enter") { e.preventDefault(); loadNextPage(); }
+      else if (code === "KeyO") { e.preventDefault(); navigateToPage(); }
       else if (code === "KeyF") { e.preventDefault(); toggleFullscreen(); }
       else if (e.key === "Escape") { if (!document.fullscreenElement) close(); }
       else if (e.key === "Home") { show(0); }
