@@ -512,6 +512,7 @@
     // We only *enter* a page that yields MORE THAN ONE fresh gallery image, so single-image
     // detail/dead-end pages are skipped and we fall through to the next candidate.
     let fetching = false;
+    let pagesExhausted = false;
     const triedPages = new Set();
     let pageCursor = opts.local ? null : findNextLink(document, location.href);
 
@@ -527,16 +528,21 @@
       setTimeout(() => { if (counter.textContent === msg) counter.textContent = `${index + 1} / ${images.length}`; }, 1300);
     }
 
-    async function loadNextPage() {
-      if (fetching) return;
+    async function loadNextPage(o) {
+      const auto = !!(o && o.auto);                            // auto = reached the end, not a keypress
+      if (fetching) return false;
       const item = images[index];
-      if (settings.autoLikeNext && !opts.local) { likeItem(item); refreshHeart(); }
+      if (settings.autoLikeNext && !opts.local && !auto) { likeItem(item); refreshHeart(); }
       const candidates = [];
       const add = (u) => { if (u && /^https?:/i.test(u) && !triedPages.has(u) && !candidates.includes(u)) candidates.push(u); };
       add(item.pageHref);
       add(item.source);
       add(pageCursor);
-      if (!candidates.length) { transientCounter("No next page from here"); return; }
+      if (!candidates.length) {
+        pagesExhausted = true;
+        if (!auto) transientCounter("No next page from here");
+        return false;
+      }
 
       fetching = true;
       const restore = `${index + 1} / ${images.length}`;
@@ -551,15 +557,34 @@
             for (const it of res.fresh) { seen.add(it.full); images.push(it); }
             pageCursor = findNextLink(res.doc, url);            // keep paginating from here
             show(startIdx);
-            return;
+            return true;
           }
           const np = findNextLink(res.doc, url);               // thin page; remember its next link
           if (np && !triedPages.has(np)) pageCursor = np;
         }
+        // tried everything we knew about; only truly exhausted if no fresh cursor surfaced
+        pagesExhausted = !pageCursor || triedPages.has(pageCursor);
         counter.textContent = restore;
-        transientCounter("No further gallery pages");
+        if (!auto) transientCounter("No further gallery pages");
+        return false;
       } finally {
         fetching = false;
+      }
+    }
+
+    // Reaching the end: first exhaust this page's lazy-loaders, then auto-travel to the
+    // next page if one is available — so browsing continues without pressing a key.
+    let extending = false;
+    async function autoExtend() {
+      if (extending || fetching) return;
+      extending = true;
+      try {
+        const before = images.length;
+        await loadMore();                                      // scroll-harvest current page
+        if (images.length > before) return;                   // found more locally; good for now
+        if (!pagesExhausted) await loadNextPage({ auto: true });
+      } finally {
+        extending = false;
       }
     }
 
@@ -588,7 +613,7 @@
       }
       preload(index + 1);
       preload(index - 1);
-      if (index >= images.length - 3) loadMore();
+      if (index >= images.length - 3) autoExtend();
     }
     function preload(i) {
       const item = images[(i + images.length) % images.length];

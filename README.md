@@ -66,9 +66,10 @@ likes are stored in your browser's own extension storage.
 - **Like &amp; save locally.** `Space` / `↑` saves the current image to local extension storage
   (persists across sessions, nothing downloaded to disk). `⌥X` opens those saved images as
   their own gallery; `⌥C` clears them. Liking again unlikes.
-- **Lazy harvesting.** As you approach the end of the current set, the gallery quietly scrolls
-  the underlying page to trigger lazy-loaders, re-scans, and appends new images. Your scroll
-  position is restored on close.
+- **Auto-continues at the end.** As you approach the end of the current set, the gallery quietly
+  scrolls the underlying page to trigger lazy-loaders and appends what shows up; once the page is
+  fully harvested, it **automatically travels to the next page** (pagination / detail page) and
+  keeps the images coming — no keypress needed. Manual `Enter` / `↑` still jumps ahead on demand.
 - **Junk filtering.** Skips anything under ~140px per side, tiny-area banners, and anything whose
   class/id/alt/url matches `logo|icon|sprite|avatar|emoji|badge|favicon|spinner|button|…`.
   Optionally skips SVGs, `<nav>`/`<footer>` images, and same-origin transparent PNGs.
