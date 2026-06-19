@@ -69,10 +69,13 @@ likes are stored in your browser's own extension storage.
 - **Like &amp; save locally.** `Space` / `↑` saves the current image to local extension storage
   (persists across sessions, nothing downloaded to disk). `⌥X` opens those saved images as
   their own gallery; `⌥C` clears them. Liking again unlikes.
-- **Auto-continues at the end.** As you approach the end of the current set, the gallery quietly
-  scrolls the underlying page to trigger lazy-loaders and appends what shows up; once the page is
-  fully harvested, it **automatically travels to the next page** (pagination / detail page) and
-  keeps the images coming — no keypress needed. Manual `Enter` / `↑` still jumps ahead on demand.
+- **Auto-continues at the end — with real lazy-loading.** As you approach the end of the current
+  set, the gallery quietly scrolls the underlying page to trigger lazy-loaders and appends what
+  shows up. Once a page is fully harvested it **travels to the next gallery page for real** — a
+  genuine same-tab navigation (same-origin) — so the browser renders that page and *its* lazy /
+  infinite-scroll images actually load, instead of dead-ending on the handful present in static
+  HTML. The gallery **auto-reopens on arrival and resumes on the image you left off**, so it feels
+  continuous. (Manual `Enter` / `↑` still does the fast in-place seamless peek without reloading.)
 - **Page-aware back & address bar.** Each time it advances into a new page, the tab's **address
   bar follows** (same-origin pages, via `history` — so closing the gallery leaves you on the page
   you browsed to). Press `↓` / `S` to **step back a page**, landing back on the exact image you
@@ -162,6 +165,10 @@ browser's local extension storage.
 - Some sites (e.g. Google Images) inject results via JavaScript with URLs buried in inline
   JSON; only the initially-rendered images are picked up there.
 - Transparency detection is same-origin only (browser canvas security).
+- The fast in-place seamless peek (`Enter` / `↑`) parses a background-fetched page, which the
+  browser never renders — so only that page's static-HTML images appear; its lazy / infinite-scroll
+  images load when auto-continue navigates there for real. Cross-origin next pages can't carry the
+  resume marker (per-origin storage), so they navigate without auto-reopening — press `⌥Z` to reopen.
 - On a fetched next page, lazy-load placeholders are unwrapped to the real image URL, but a
   few sites hotlink-protect images by `Referer` and may still serve a blank/black frame.
 

@@ -119,6 +119,9 @@
     } catch (_) { /* malformed */ }
     return null;
   }
+  function sameOrigin(url) {
+    try { return new URL(url, location.href).origin === location.origin; } catch (_) { return false; }
+  }
 
   function looksLikeJunk(node, src) {
     const haystack = `${node.className || ""} ${node.id || ""} ${node.getAttribute ? (node.getAttribute("alt") || "") : ""} ${src}`;
@@ -518,6 +521,9 @@
     let pagesExhausted = false;
     const triedPages = new Set();
     let pageCursor = opts.local ? null : findNextLink(document, location.href);
+    // A page we entered seamlessly (background fetch) is NOT rendered, so its lazy-loaded
+    // images never appeared. When we run dry on it we real-navigate here to render them.
+    let pendingLiveUrl = null;
 
     async function fetchGallery(url) {
       const resp = await api.runtime.sendMessage({ type: "fsg-fetch", url });
@@ -561,6 +567,7 @@
             for (const it of res.fresh) { seen.add(it.full); images.push(it); }
             pageCursor = findNextLink(res.doc, url);            // keep paginating from here
             try { history.pushState(null, "", url); } catch (_) { /* cross-origin: address bar stays */ }
+            pendingLiveUrl = url;                               // its lazy images still await a real render
             show(startIdx);
             return true;
           }
@@ -577,17 +584,66 @@
       }
     }
 
-    // Reaching the end: first exhaust this page's lazy-loaders, then auto-travel to the
-    // next page if one is available — so browsing continues without pressing a key.
+    // Validate the next gallery page seamlessly (must hold >1 fresh image) and return its
+    // URL WITHOUT entering it — the caller real-navigates there so the browser renders the
+    // page and its lazy-loaders actually run (a background-fetched doc never does).
+    async function findLiveNextTarget() {
+      if (fetching) return null;
+      const item = images[index];
+      const candidates = [];
+      const add = (u) => { if (u && /^https?:/i.test(u) && !triedPages.has(u) && !candidates.includes(u)) candidates.push(u); };
+      add(item.pageHref); add(item.source); add(pageCursor);
+      if (!candidates.length) { pagesExhausted = true; return null; }
+      fetching = true;
+      try {
+        for (const url of candidates) {
+          triedPages.add(url);
+          let res;
+          try { res = await fetchGallery(url); } catch (_) { continue; }
+          if (res.fresh.length > 1) return url;
+          const np = findNextLink(res.doc, url);
+          if (np && !triedPages.has(np)) pageCursor = np;
+        }
+        pagesExhausted = !pageCursor || triedPages.has(pageCursor);
+        return null;
+      } finally { fetching = false; }
+    }
+
+    // Real same-tab navigation to a page so it renders fully (lazy images load), stashing a
+    // resume marker so the gallery reopens on the image we left off (same-origin only —
+    // sessionStorage is per-origin, so a cross-origin jump just lands without auto-reopening).
+    function goLiveAndResume(url) {
+      if (!url || !/^https?:/i.test(url)) return false;
+      try {
+        const at = images[index] ? images[index].full : null;
+        if (sameOrigin(url)) sessionStorage.setItem(RESUME_KEY, JSON.stringify({ at }));
+      } catch (_) { /* storage blocked */ }
+      if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+      window.location.assign(url);
+      return true;
+    }
+
+    // Reaching the end: first exhaust this (live) page's lazy-loaders. If we're sitting on a
+    // page we entered seamlessly, render it for real so ITS lazy images load. Otherwise find
+    // the next gallery page and travel there for real — so browsing continues, lazy-load-aware.
     let extending = false;
     async function autoExtend() {
       if (extending || fetching) return;
       extending = true;
       try {
         const before = images.length;
-        await loadMore();                                      // scroll-harvest current page
+        await loadMore();                                      // scroll-harvest the live page
         if (images.length > before) return;                   // found more locally; good for now
-        if (!pagesExhausted) await loadNextPage({ auto: true });
+        if (pendingLiveUrl && sameOrigin(pendingLiveUrl)) {    // seamless page → render it live
+          const url = pendingLiveUrl; pendingLiveUrl = null;
+          if (goLiveAndResume(url)) return;
+        }
+        if (pagesExhausted) return;
+        const target = await findLiveNextTarget();
+        if (!target) return;
+        if (sameOrigin(target)) { goLiveAndResume(target); return; }
+        transientCounter("Next page is on another site — press O to open it");
+        pagesExhausted = true;                                 // don't yank the user cross-origin on autopilot
       } finally {
         extending = false;
       }
@@ -638,6 +694,9 @@
       if (!pageStack.length) { show(index - 1); return; }
       const { idx, prevUrl } = pageStack.pop();
       try { history.pushState(null, "", prevUrl); } catch (_) { /* cross-origin */ }
+      // Back on a still-fetched page → its lazy images await a live render; back on the
+      // original (live) page → nothing pending.
+      pendingLiveUrl = pageStack.length ? prevUrl : null;
       show(idx);
     };
 
@@ -651,7 +710,7 @@
       // (sessionStorage is per-origin; setting it before a cross-origin jump would just
       // leave a stale flag on the page we're leaving).
       try {
-        if (new URL(url, location.href).origin === location.origin) sessionStorage.setItem(RESUME_KEY, "1");
+        if (sameOrigin(url)) sessionStorage.setItem(RESUME_KEY, JSON.stringify({ at: item.full }));
       } catch (_) { /* malformed / blocked */ }
       if (document.fullscreenElement) { document.exitFullscreen().catch(() => {}); }
       window.location.assign(url);
@@ -721,11 +780,15 @@
   }
 
   // ---- Open / toggle ---------------------------------------------------------
-  function openGallery() {
+  function openGallery(resumeAt) {
     if (window.__fsGalleryInstance) return;
     const seen = new Set();
     const images = collectImages(seen);
-    const start = pickStartIndex(images);
+    let start = pickStartIndex(images);
+    if (resumeAt) {                                    // resumed after a real next-page navigation
+      const i = images.findIndex((im) => im.full === resumeAt);
+      if (i >= 0) start = i;                           // land on the image we left off (else most-visible)
+    }
     window.__fsGalleryInstance = images.length
       ? buildGallery(images, seen, { startIndex: start })
       : buildEmpty("No gallery-worthy images found on this page.");
@@ -763,9 +826,12 @@
   loadLiked();
 
   try {
-    if (sessionStorage.getItem(RESUME_KEY) === "1") {
+    const resume = sessionStorage.getItem(RESUME_KEY);
+    if (resume) {
       sessionStorage.removeItem(RESUME_KEY);
-      openGallery();
+      let at = null;
+      if (resume !== "1") { try { at = JSON.parse(resume).at || null; } catch (_) { /* legacy flag */ } }
+      openGallery(at);
     }
   } catch (_) { /* sessionStorage may be blocked */ }
 })();
