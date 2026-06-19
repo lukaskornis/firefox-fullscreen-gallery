@@ -45,9 +45,15 @@ likes are stored in your browser's own extension storage.
 - **Full-resolution images.** For each thumbnail it tries lightbox/shop data attributes,
   the enclosing `<a href>` when it points at an image, search-engine redirect unwrapping,
   and the largest `srcset` entry — falling back to the thumbnail only if nothing better loads.
-- **Seamless next page.** `Enter` / `↑` fetches the linked page in the background, extracts
-  its images, appends them, and jumps to the first new one. The gallery never closes — chain
-  deeper and deeper through a site.
+- **Seamless next page.** `Enter` / `↑` fetches the next page in the background, extracts its
+  images, appends them, and jumps to the first new one — the gallery never closes. It tries, in
+  order, the image's own detail/card page, the page it was saved from, then the site's
+  pagination (`rel="next"`, "Next/Older/More" links), and **only enters a page that has more
+  than one gallery image** — so single-image dead-ends are skipped automatically and it keeps
+  chaining deeper through a site.
+- **Saved gallery is a browsing entrypoint.** `Enter` / `↑` works inside the favorites gallery
+  too: from any saved image it dives back into that image's page (or the page you saved it from)
+  to pull in more — so your bookmarks double as a jumping-off point to explore similar images.
 - **Opens on what you're looking at.** The gallery starts on the image most visible in the
   current viewport; when several are similarly visible, it picks the one whose center is closest
   to your cursor.

@@ -301,6 +301,24 @@
     return out;
   }
 
+  // Find a site's "next page" / pagination link in a (live or fetched) document.
+  const NEXT_TEXT_RE = /^(next|older|more|load more|»|›|>>|→|›|»)$/i;
+  function findNextLink(doc, base) {
+    const abs = (u) => { if (!u) return null; try { return new URL(u, base).href; } catch (_) { return null; } };
+    const sel = "a[rel~='next'], link[rel='next'], a.next, .next > a, .pagination .next a, " +
+      "li.next a, a.pagination-next, a[aria-label*='next' i], a[aria-label*='older' i]";
+    const direct = doc.querySelector(sel);
+    if (direct) { const h = abs(direct.getAttribute("href")); if (h && /^https?:/i.test(h) && h !== base) return h; }
+    for (const a of doc.querySelectorAll("a[href]")) {
+      const t = (a.textContent || "").trim();
+      if (t.length <= 12 && NEXT_TEXT_RE.test(t)) {
+        const h = abs(a.getAttribute("href"));
+        if (h && /^https?:/i.test(h) && h !== base) return h;
+      }
+    }
+    return null;
+  }
+
   // ---- Gallery UI ------------------------------------------------------------
   function buildGallery(images, seen, opts) {
     opts = opts || {};
@@ -469,25 +487,57 @@
     }
 
     // --- Seamless next page (only ever targets real HTML pages, never raw images) ---
+    // Candidates, in priority order: the image's own detail/card page, the page it was
+    // saved from (for the favorites gallery), then the site's pagination "next" link.
+    // We only *enter* a page that yields MORE THAN ONE fresh gallery image, so single-image
+    // detail/dead-end pages are skipped and we fall through to the next candidate.
     let fetching = false;
+    const triedPages = new Set();
+    let pageCursor = opts.local ? null : findNextLink(document, location.href);
+
+    async function fetchGallery(url) {
+      const resp = await api.runtime.sendMessage({ type: "fsg-fetch", url });
+      if (!resp || !resp.ok) throw new Error((resp && resp.error) || "fetch failed");
+      const doc = new DOMParser().parseFromString(resp.html, "text/html");
+      const fresh = extractFetched(doc, url).filter((it) => !seen.has(it.full));
+      return { doc, fresh };
+    }
+    function transientCounter(msg) {
+      counter.textContent = msg;
+      setTimeout(() => { if (counter.textContent === msg) counter.textContent = `${index + 1} / ${images.length}`; }, 1300);
+    }
+
     async function loadNextPage() {
-      const href = images[index].pageHref;
-      if (!href || fetching || opts.local) return;
-      if (settings.autoLikeNext) { likeItem(images[index]); refreshHeart(); }
+      if (fetching) return;
+      const item = images[index];
+      if (settings.autoLikeNext && !opts.local) { likeItem(item); refreshHeart(); }
+      const candidates = [];
+      const add = (u) => { if (u && /^https?:/i.test(u) && !triedPages.has(u) && !candidates.includes(u)) candidates.push(u); };
+      add(item.pageHref);
+      add(item.source);
+      add(pageCursor);
+      if (!candidates.length) { transientCounter("No next page from here"); return; }
+
       fetching = true;
-      const restore = counter.textContent;
+      const restore = `${index + 1} / ${images.length}`;
       counter.textContent = "Loading next page…";
       try {
-        const resp = await api.runtime.sendMessage({ type: "fsg-fetch", url: href });
-        if (!resp || !resp.ok) throw new Error(resp && resp.error || "fetch failed");
-        const doc = new DOMParser().parseFromString(resp.html, "text/html");
-        const fresh = extractFetched(doc, href).filter((it) => !seen.has(it.full));
-        if (!fresh.length) { counter.textContent = restore; return; } // nothing new; stay put
-        const startIdx = images.length;
-        for (const it of fresh) { seen.add(it.full); images.push(it); }
-        show(startIdx);
-      } catch (_) {
-        counter.textContent = restore; // never hard-navigate; that breaks the gallery
+        for (const url of candidates) {
+          triedPages.add(url);
+          let res;
+          try { res = await fetchGallery(url); } catch (_) { continue; }
+          if (res.fresh.length > 1) {                          // a real gallery → enter it
+            const startIdx = images.length;
+            for (const it of res.fresh) { seen.add(it.full); images.push(it); }
+            pageCursor = findNextLink(res.doc, url);            // keep paginating from here
+            show(startIdx);
+            return;
+          }
+          const np = findNextLink(res.doc, url);               // thin page; remember its next link
+          if (np && !triedPages.has(np)) pageCursor = np;
+        }
+        counter.textContent = restore;
+        transientCounter("No further gallery pages");
       } finally {
         fetching = false;
       }
@@ -500,7 +550,8 @@
       const token = ++loadToken;
       counter.textContent = `${index + 1} / ${images.length}`;
       openLink.href = item.full;
-      if (item.pageHref) { visitLink.href = item.pageHref; visitLink.hidden = false; }
+      const nextTarget = item.pageHref || item.source || pageCursor;
+      if (nextTarget) { visitLink.href = nextTarget; visitLink.hidden = false; }
       else { visitLink.removeAttribute("href"); visitLink.hidden = true; }
       refreshHeart();
 
@@ -526,7 +577,7 @@
 
     const next = () => { ensureFullscreen(); show(index + 1); };
     const prev = () => { ensureFullscreen(); show(index - 1); };
-    const up = () => { ensureFullscreen(); like(); if (images[index].pageHref) loadNextPage(); };
+    const up = () => { ensureFullscreen(); like(); loadNextPage(); };
     const down = () => { ensureFullscreen(); unlike(); };
 
     q(".next").addEventListener("click", next);
@@ -602,7 +653,7 @@
   }
   function openLocalGallery() {
     if (window.__fsGalleryInstance) window.__fsGalleryInstance.close();
-    const images = likedList.map((i) => ({ thumb: i.thumb || i.full, full: i.full, area: 0, pageHref: i.pageHref }));
+    const images = likedList.map((i) => ({ thumb: i.thumb || i.full, full: i.full, area: 0, pageHref: i.pageHref, source: i.source }));
     const seen = new Set(images.map((i) => i.full));
     window.__fsGalleryInstance = images.length
       ? buildGallery(images, seen, { local: true })
